@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.ipynb_checkpoints/
+.DS_Store
+.idea/
+.vscode/
+logs
+
+# data and outputs
+data/
+results/
+*.csv
+*.h5
+*.pt
+*.pkl
