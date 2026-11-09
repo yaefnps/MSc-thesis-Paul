@@ -25,8 +25,7 @@ eradir_out = '/jetfs/scratch/psplechtna/thesisdata/radfluxes/z/'
 if len(sys.argv) != 3:
     sys.exit('Usage: python regrid_rad_g.py YEAR MONTH')
 year, month = int(sys.argv[1]), int(sys.argv[2])
-n_days = 2
-#n_days = calendar.monthrange(year, month)[1]
+n_days = calendar.monthrange(year, month)[1]
 start_time = dt.datetime(year, month, 1, 0)
 times = create_datelist(start_time, start_time + dt.timedelta(days=n_days, hours=-1))
 daylist_era = np.unique(np.array([dt.datetime(t.year, t.month, t.day) for t in times]))
