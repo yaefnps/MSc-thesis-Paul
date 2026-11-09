@@ -10,7 +10,6 @@ from era5_to_flex_helpers import (
     read_hybrid_coefficients,
     read_met,
     calculate_geometry,
-    average_to_flexpart_layers,
     wrap_lon,
     as_array,
 )
@@ -49,6 +48,31 @@ def fx_file(t):
     return eradir_fx + t.strftime('%Y/%m/EA%Y%m%d%H')
 
 
+def average_to_layers_massweighted(source, boundaries, upper_bounds, dp):
+    """
+    Mass-weighted layer means with exact overlap handling (same geometry as
+    average_to_flexpart_layers, but each level is weighted by the part of its
+    air mass (dp) that lies inside the layer, assuming uniform density within a level).
+
+    source     : (nlev, ...) variable on full levels, index 0 = model top
+    boundaries : (nlev+1, ...) half-level heights above ground, boundaries[0] = inf
+    dp         : (nlev, ...) pressure thickness of each level
+    """
+    thickness = boundaries[:-1] - boundaries[1:]
+    layer_means = []
+    bottom = 0.0
+    for top in upper_bounds:
+        overlap = np.maximum(
+            0.0,
+            np.minimum(boundaries[:-1], top) - np.maximum(boundaries[1:], bottom),
+        )
+        np.testing.assert_allclose(overlap.sum(axis=0), top - bottom, rtol=1e-8, atol=1e-6)
+        w = dp * overlap / thickness                      # mass of each level inside the layer
+        layer_means.append((source * w).sum(axis=0) / w.sum(axis=0))
+        bottom = top
+    return np.stack(layer_means)
+
+
 ## grid + hybrid coefficients, taken once from the first fx file ##
 first_file = fx_file(times[0])
 a_half, b_half = read_hybrid_coefficients(first_file)
@@ -73,10 +97,13 @@ def process_day(d):
     for t in hours:
         met = read_met(fx_file(t), latitude, longitude)
         _, height_half, _ = calculate_geometry(met, a_half, b_half)
+        sp = as_array(met.sp, ('latitude', 'longitude'))
+        p_half = a_half[:, None, None] + b_half[:, None, None] * sp
+        dp = np.diff(p_half, axis=0)                      # (137, lat, lon), > 0
         rad_t = rad.sel(valid_time=np.datetime64(t))
         for var in var_list:
             src = as_array(rad_t[var], ('hybrid', 'latitude', 'longitude'))
-            out[var].append(average_to_flexpart_layers(src, height_half, upper_bounds).astype(np.float32))
+            out[var].append(average_to_layers_massweighted(src, height_half, upper_bounds, dp).astype(np.float32))
 
     return {var: np.stack(out[var]) for var in var_list}, [np.datetime64(t) for t in hours]
 
@@ -103,8 +130,8 @@ ds_era_int = xr.Dataset(
         'height': ('height', upper_bounds),
         'valid_time': ('valid_time', time_list),
     },
-    attrs={'description': 'Height-weighted layer-mean variables (era5_to_flex_helpers)'},
+    attrs={'description': 'Mass-weighted layer-mean variables (exact overlap, era5_to_flex_helpers geometry)'},
 )
 
 os.makedirs(f'{eradir_out}/{year}', exist_ok=True)
-ds_era_int.to_netcdf(f'{eradir_out}/{year}/heightav_{year}{month:02d}.nc')
+ds_era_int.to_netcdf(f'{eradir_out}/{year}/heightav_n_{year}{month:02d}.nc')
