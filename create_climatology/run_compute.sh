@@ -4,7 +4,7 @@
 #SBATCH --job-name=mse_clim
 #SBATCH --cpus-per-task=2         
 #SBATCH --mem=16GB                   
-#SBATCH --time=06:00:00            
+#SBATCH --time=08:00:00            
 #SBATCH --output=logs/compute_%A_%a.out
 #SBATCH --error=logs/compute_%A_%a.err
 
