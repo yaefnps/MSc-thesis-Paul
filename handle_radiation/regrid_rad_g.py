@@ -134,4 +134,4 @@ ds_era_int = xr.Dataset(
 )
 
 os.makedirs(f'{eradir_out}/{year}', exist_ok=True)
-ds_era_int.to_netcdf(f'{eradir_out}/{year}/heightav_n_{year}{month:02d}.nc')
+ds_era_int.to_netcdf(f'{eradir_out}/{year}/pressav_{year}{month:02d}.nc')
