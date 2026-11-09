@@ -6,6 +6,6 @@
 #SBATCH --mem=300GB
 
 YEAR=2024
-MONTH=5
+MONTH=6
 
 /usr/bin/time -v python3 -u regrid_rad_g.py $YEAR $MONTH
