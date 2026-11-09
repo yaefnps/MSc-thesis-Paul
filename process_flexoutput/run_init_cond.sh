@@ -11,4 +11,4 @@
 source ~/activate_flexpart_post.sh
 RUN='oper/2024/oper_01'
 
-/usr/bin/time -v python3 -u initial_conds_oper_massw.py $RUN
+/usr/bin/time -v python3 -u initial_conds_oper.py $RUN

@@ -116,7 +116,20 @@ def calculate_geometry(met, a_half, b_half):
     return height_full, height_half, ground_altitude
 
 
-def average_to_flexpart_layers(source, boundaries, upper_bounds):
+def pressure_thickness(met, a_half, b_half):
+    """Pressure thickness dp (Pa) of each model level, index 0 = model top."""
+    surface_pressure = as_array(met.sp, ("latitude", "longitude"))
+    pressure_half = a_half[:, None, None] + b_half[:, None, None] * surface_pressure
+    return np.diff(pressure_half, axis=0)
+
+
+def average_to_layers_massweighted(source, boundaries, upper_bounds, dp):
+    """
+    Mass-weighted layer means with exact overlap handling.
+    Each model level contributes with the part of its air mass (dp) that lies
+    inside the layer (uniform density within a level assumed).
+    """
+    thickness = boundaries[:-1] - boundaries[1:]  # inf for level 0 -> fraction 0
     layer_means = []
     bottom = 0.0
 
@@ -128,7 +141,8 @@ def average_to_flexpart_layers(source, boundaries, upper_bounds):
         np.testing.assert_allclose(
             overlap.sum(axis=0), top - bottom, rtol=1e-8, atol=1e-6
         )
-        layer_means.append((source * overlap).sum(axis=0) / (top - bottom))
+        w = dp * overlap / thickness
+        layer_means.append((source * w).sum(axis=0) / w.sum(axis=0))
         bottom = top
 
     return np.stack(layer_means)
@@ -170,6 +184,7 @@ for index, initial_time in enumerate(initial_times):
     met = read_met(met_file, sensitivity.latitude, sensitivity.longitude)
     a_half, b_half = read_hybrid_coefficients(met_file)
     height_full, height_half, ground_altitude = calculate_geometry(met, a_half, b_half)
+    dp = pressure_thickness(met, a_half, b_half)
 
     energy_fields = {
         "cpT": cp * as_array(met.t, HYB),
@@ -177,11 +192,11 @@ for index, initial_time in enumerate(initial_times):
         "pot": g * (height_full + ground_altitude),
     }
 
-    # map to FLEXPART layers and weight with the sensitivity
+    # map to FLEXPART layers (mass-weighted) and weight with the sensitivity
     for k, name in enumerate(component_names):
         layer_energy = xr.DataArray(
-            average_to_flexpart_layers(
-                energy_fields[name], height_half, sensitivity.height.values
+            average_to_layers_massweighted(
+                energy_fields[name], height_half, sensitivity.height.values, dp
             ),
             dims=["height", "latitude", "longitude"],
             coords={
