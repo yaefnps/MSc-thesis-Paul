@@ -21,7 +21,7 @@ earth_radius = 6371000.0
 # ------------------------------------------------------------------- paths
 run_dir = Path("/jetfs/scratch/psplechtna/flexpart_output") / run
 out_dir = Path("/jetfs/scratch/psplechtna/flexpart_output") / run / "processed_data"
-path_clim = "/jetfs/scratch/psplechtna/thesisdata/mse_climatology_3.0/"
+path_clim = "/jetfs/scratch/psplechtna/thesisdata/mse_climatology_4.0/"
 filename_clim = "mse_hourly_climatology.zarr"
 met_dir = Path("/jetfs/shared-data/ECMWF/ERA5_glob_0.5deg_1h/")
 

@@ -44,14 +44,14 @@ def centered_diff(da, dim='time'):
 
 year = sys.argv[1]
 
-path = '/jetfs/scratch/psplechtna/flexpart_output/oper' + year + '/'
-filename = glob.glob(os.path.join(path, 'grid_time_*.nc'))[0]
+path = '/jetfs/scratch/psplechtna/flexpart_output/oper/' + year + '/'
+filename = glob.glob(os.path.join(path, f'grid_time_{year}0*.nc'))[0]
 path_fluxes = '/jetfs/scratch/psplechtna/thesisdata/sfcfluxes/'
 filename_fluxes = f'fluxes_per_sec_{year}.nc'
 path_bl     = '/jetfs/scratch/psplechtna/thesisdata/boundary_layer/'
 filename_bl = f'bl_height_{year}.nc'
 
-path_clim = '/jetfs/scratch/psplechtna/thesisdata/mse_climatology_3.0/'
+path_clim = '/jetfs/scratch/psplechtna/thesisdata/mse_climatology_4.0/'
 filename_clim = 'mse_hourly_climatology.zarr'
 
 outdir      = path + 'processed_data/'
