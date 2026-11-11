@@ -2,9 +2,9 @@
 # Don't call sbatch on this directly; use submit_range.sh, which sets the array size
 # and the date range (RANGE_START / RANGE_END / DAYS_PER_JOB) for you.
 #SBATCH --job-name=mse_clim
-#SBATCH --cpus-per-task=2         
+#SBATCH --cpus-per-task=4         
 #SBATCH --mem=16GB                   
-#SBATCH --time=08:00:00            
+#SBATCH --time=12:00:00            
 #SBATCH --output=logs/compute_%A_%a.out
 #SBATCH --error=logs/compute_%A_%a.err
 

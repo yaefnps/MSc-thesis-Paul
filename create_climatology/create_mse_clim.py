@@ -67,7 +67,7 @@ OUT_ZARR = '/jetfs/scratch/psplechtna/thesisdata/mse_climatology_4.0/mse_hourly_
 
 YEARS = range(1991, 2021)
 SEASON_START = '05-16'
-SEASON_END = '09-16'
+SEASON_END = '09-01'
 WINDOW = 10
 LAT_SLICE = slice(90, 20)       # ERA5 latitude is descending
 STD_KIND = 'total'              # 'total' (all window values) or 'within' (old pooled version)
