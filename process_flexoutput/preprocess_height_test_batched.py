@@ -49,7 +49,7 @@ height = float(height_str)
 path = '/jetfs/scratch/psplechtna/flexpart_output/oper/' + run + '/'
 filename = glob.glob(os.path.join(path, 'grid_time_*.nc'))[0]
 path_fluxes = '/jetfs/scratch/psplechtna/thesisdata/sfcfluxes/'
-filename_fluxes = f'fluxes_per_sec_full2024.nc'
+filename_fluxes = f'fluxes_per_sec_2024.nc'
 
 outdir      = path + 'processed_data/'
 
@@ -67,20 +67,16 @@ data = xr.open_dataset(
             'latitude': -1, 'longitude': -1},
 )
 # add missing longitude data - linear interpolation between -179 and 180
-west = data.sel(longitude=-179).load()
-east = data.sel(longitude=180).load()
+# convert to 0-360 first
+data = data.assign_coords(longitude=data.longitude % 360).sortby("longitude")
+lon_vars = [
+    v for v in data.data_vars
+    if "longitude" in data[v].dims and np.issubdtype(data[v].dtype, np.floating)
+]
+new = data[lon_vars].interp(longitude=[180.5], method="linear")
+lon_part = xr.concat([data[lon_vars], new], dim="longitude").sortby("longitude")
+data = xr.merge([lon_part, data.drop_vars(lon_vars)], compat="override").sortby("latitude")
 
-wrapper_value = 0.5 * (west.drop_vars("longitude") + east.drop_vars("longitude"))
-wrapper_value = wrapper_value.expand_dims(longitude=[-179.5])
-
-data = xr.concat(
-    [wrapper_value, data],
-    dim="longitude",
-    data_vars="minimal",
-    coords="minimal",
-    compat="override",
-)
-data = data.assign_coords(longitude=data.longitude % 360).sortby("longitude").sortby("latitude")
 data = data.sel(latitude=slice(30, 90))      # subset BEFORE any heavy work
 data = data.chunk({'time': 1, 'pointspec': 1, 'height': -1, 'latitude': -1, 'longitude': -1})
 data_mr = data['spec001_mr'].isel(nageclass=0)
