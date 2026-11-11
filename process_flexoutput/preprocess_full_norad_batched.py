@@ -70,9 +70,15 @@ data = xr.open_dataset(
             'latitude': -1, 'longitude': -1},
 )
 # add missing longitude data - just to have a full longitude dataset, the values don't matter for now
-wrap1 = data.sel(longitude=-179).assign_coords(longitude=-179.5)
-data = xr.concat([ wrap1, data], dim='longitude')
-data = data.assign_coords(longitude=data.longitude % 360).sortby('longitude').sortby('latitude')
+# convert to 0-360 first
+data = data.assign_coords(longitude=data.longitude % 360).sortby("longitude")
+lon_vars = [
+    v for v in data.data_vars
+    if "longitude" in data[v].dims and np.issubdtype(data[v].dtype, np.floating)
+]
+new = data[lon_vars].interp(longitude=[180.5], method="linear")
+lon_part = xr.concat([data[lon_vars], new], dim="longitude").sortby("longitude")
+data = xr.merge([lon_part, data.drop_vars(lon_vars)], compat="override").sortby("latitude")
 
 data = data.sel(latitude=slice(30, 90))      # subset BEFORE any heavy work
 data = data.chunk({'time': 1, 'pointspec': 1, 'height': -1, 'latitude': -1, 'longitude': -1})
