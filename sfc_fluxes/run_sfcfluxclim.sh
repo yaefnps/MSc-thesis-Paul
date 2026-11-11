@@ -2,7 +2,7 @@
 #SBATCH --job-name=sfcfluxclim
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=50GB
+#SBATCH --mem=400GB
 #SBATCH --time=12:00:00
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --mail-type=ALL
