@@ -96,7 +96,7 @@ fl = fl.chunk({'time': 1})
 mem('after era5')
 
 # choose all heights below height
-released = spec.isel(height=(spec.height <= height).values).sum('height')
+released = data_mr.isel(height=(data_mr.height <= height).values).sum('height')
 # --- # sfc fluxes
 rel_lh = (-fl['slhf'] * released / height).squeeze().rename('lh_bl')
 rel_sh = (-fl['sshf'] * released / height).squeeze().rename('sh_bl')
