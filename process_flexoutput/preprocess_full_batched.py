@@ -146,8 +146,8 @@ rel_lh = (-anc['slhf'] * released_mr / cutoff_height).squeeze().rename('lh_bl')
 rel_sh = (-anc['sshf'] * released_mr / cutoff_height).squeeze().rename('sh_bl')
 
 # --- # advection
-total  = xr.dot(clim_aligned, data_mass, dim=['latitude', 'longitude', 'height']).rename('total') / 3600
-season = xr.dot(dclim_dt, data_mass, dim=['latitude', 'longitude', 'height']).rename('season') / 3600
+total  = xr.dot(clim_aligned, data_mr, dim=['latitude', 'longitude', 'height']).rename('total') / 3600
+season = xr.dot(dclim_dt, data_mr, dim=['latitude', 'longitude', 'height']).rename('season') / 3600
 
 # --- # radiation
 rad_sw = xr.dot(rad_grid['avg_ttswr'], data_mass, dim='height').rename('rad_sw')
@@ -156,12 +156,12 @@ rad_lw = xr.dot(rad_grid['avg_ttlwr'], data_mass, dim='height').rename('rad_lw')
 out_chunks = {'time': 1, 'pointspec': -1, 'latitude': -1, 'longitude': -1}
 
 outputs = {
-    'lh_bl':     rel_lh,
-    'sh_bl':     rel_sh,
-    'rad_sw':    rad_sw,
-    'rad_lw':    rad_lw,
-    'total_mse': total,
-    'season':    season,
+    'lh_bl_n':     rel_lh,
+    'sh_bl_n':     rel_sh,
+    'rad_sw_n':    rad_sw,
+    'rad_lw_n':    rad_lw,
+    'total_mse_n': total,
+    'season_n':    season,
 }
 
 def rechunk(da):
