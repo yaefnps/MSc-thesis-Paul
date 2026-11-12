@@ -9,7 +9,7 @@
 #SBATCH --mail-user=a11925151@unet.unvie.ac.at
 
 source ~/activate_flexpart_post.sh
-RUN='2024/oper_01'
+RUN='2024/oper_02'
 HEIGHT=2000
 
 /usr/bin/time -v python3 -u preprocess_height_test_batched.py $RUN $HEIGHT
