@@ -2,7 +2,7 @@
 #SBATCH --job-name=preprocess_flex
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=200GB
+#SBATCH --mem=250GB
 #SBATCH --time=12:00:00
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --mail-type=ALL

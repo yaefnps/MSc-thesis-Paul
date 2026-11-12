@@ -102,10 +102,13 @@ print(data.sizes, clim_aligned.nbytes/1e9, dclim_dt.nbytes/1e9, flush=True)
 # --- ERA5 fields: merge, subset, load, interpolate once -----------------
 def load_era5(path, names):
     ds = xr.open_dataset(path)[names].rename({'valid_time': 'time'})
-    ds = ds.sel(time=slice(data.time.min().values, data.time.max().values))  # contiguous block first
+    ds = ds.sel(time=slice(data.time.min().values, data.time.max().values))
+    ds = ds.sel(latitude=slice(90, 30))
+    ds = ds.load()
+    ds = ds.assign_coords(longitude=ds.longitude % 360).sortby('longitude').sortby('latitude')
     ds = ds.sel(latitude=data.latitude.values, longitude=data.longitude.values)
     ds = ds.sel(time=data.time.values)
-    return ds.load()
+    return ds
 
 t = time.time()
 fl  = load_era5(path_fluxes + filename_fluxes, ['slhf', 'sshf']); print('fluxes loaded', time.time()-t, flush=True)
