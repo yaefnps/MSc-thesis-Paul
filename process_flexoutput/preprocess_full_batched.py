@@ -145,9 +145,10 @@ cutoff_height = data_mr['height'].where(below).max('height')
 rel_lh = (-anc['slhf'] * released_mr / cutoff_height).squeeze().rename('lh_bl')
 rel_sh = (-anc['sshf'] * released_mr / cutoff_height).squeeze().rename('sh_bl')
 
+data_mr_sum = data_mr.sum(dim=['latitude', 'longitude', 'height']).load()
 # --- # advection
-total  = xr.dot(clim_aligned, data_mr, dim=['latitude', 'longitude', 'height']).rename('total') / 3600
-season = xr.dot(dclim_dt, data_mr, dim=['latitude', 'longitude', 'height']).rename('season') / 3600
+total  = xr.dot(clim_aligned, data_mr, dim=['latitude', 'longitude', 'height']).rename('total') / data_mr_sum
+season = xr.dot(dclim_dt, data_mr, dim=['latitude', 'longitude', 'height']).rename('season') / data_mr_sum
 
 # --- # radiation
 rad_sw = xr.dot(rad_grid['avg_ttswr'], data_mass, dim='height').rename('rad_sw')
