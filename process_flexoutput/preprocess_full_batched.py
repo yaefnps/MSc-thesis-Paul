@@ -4,7 +4,6 @@ import glob
 import psutil, os
 import xarray as xr
 import sys
-from dask.diagnostics import ProgressBar
 import time
 
 print('running', __file__, flush=True)
@@ -43,20 +42,18 @@ def centered_diff(da, dim='time'):
     return (da.shift({dim: -1}) - da.shift({dim: 1})) / 2
 
 run = sys.argv[1]
+height = 50
 
 path = '/jetfs/scratch/psplechtna/flexpart_output/' + run + '/'
 filename = glob.glob(os.path.join(path, 'grid_time_*.nc'))[0]
 path_fluxes = '/jetfs/scratch/psplechtna/thesisdata/sfcfluxes/'
 filename_fluxes = 'fluxes_per_sec_2024.nc'
-path_bl     = '/jetfs/scratch/psplechtna/thesisdata/boundary_layer/'
-filename_bl = 'bl_height_2024.nc'
 path_rad = '/jetfs/scratch/psplechtna/thesisdata/radfluxes/z/2024/'
 filename_rad = 'pressav_2024*.nc'
 path_clim = '/jetfs/scratch/psplechtna/thesisdata/mse_climatology_4.0/'
 filename_clim = 'mse_hourly_climatology.zarr'
 
 outdir      = path + 'processed_data/'
-
 
 dask.config.set(scheduler='threads',
                 num_workers=int(os.environ.get("SLURM_CPUS_PER_TASK", 1)))
@@ -82,6 +79,12 @@ lon_part = xr.concat([data[lon_vars], new], dim="longitude").sortby("longitude")
 data = xr.merge([lon_part, data.drop_vars(lon_vars)], compat="override").sortby("latitude")
 
 data = data.sel(latitude=slice(30, 90))      # subset BEFORE any heavy work
+
+# --- DEBUG: only process the first N time steps ---
+ntest = int(sys.argv[2]) if len(sys.argv) > 2 else None
+if ntest:
+    data = data.isel(time=slice(0, ntest))
+
 data = data.chunk({'time': 1, 'pointspec': 1, 'height': -1, 'latitude': -1, 'longitude': -1})
 data_mr = data['spec001_mr'].isel(nageclass=0)
 data_mass = data['spec001_mass'].isel(nageclass=0)
@@ -131,19 +134,14 @@ def load_era5(path, names):
 
 t = time.time()
 fl  = load_era5(path_fluxes + filename_fluxes, ['slhf', 'sshf']); print('fluxes loaded', time.time()-t, flush=True)
-bl  = load_era5(path_bl + filename_bl, ['blh']);                  print('blh loaded', time.time()-t, flush=True)
-anc = xr.merge([fl, bl], join='inner').chunk({'time': 1})
+fl = fl.chunk({'time': 1})
 mem('after era5')
 
-# --- Boundary layer integration -----------------------------------------
-hmin = data_mr['height'].min()
-below = (data_mr['height'] < anc['blh']) | (data_mr['height'] == hmin)
-released_mr = xr.dot(data_mr, below.astype('float32'), dim='height')
-cutoff_height = data_mr['height'].where(below).max('height')
-
+# choose all heights below height
+released = data_mr.isel(height=(data_mr.height <= height).values).sum('height')
 # --- # sfc fluxes
-rel_lh = (-anc['slhf'] * released_mr / cutoff_height).squeeze().rename('lh_bl')
-rel_sh = (-anc['sshf'] * released_mr / cutoff_height).squeeze().rename('sh_bl')
+rel_lh = (-fl['slhf'] * released / height).squeeze().rename('lh_50')
+rel_sh = (-fl['sshf'] * released / height).squeeze().rename('sh_50')
 
 data_mr_sum = data_mr.sum(dim=['latitude', 'longitude', 'height']).load()
 # --- # advection
@@ -157,13 +155,14 @@ rad_lw = xr.dot(rad_grid['avg_ttlwr'], data_mass, dim='height').rename('rad_lw')
 out_chunks = {'time': 1, 'pointspec': -1, 'latitude': -1, 'longitude': -1}
 
 outputs = {
-    'lh_bl_n':     rel_lh,
-    'sh_bl_n':     rel_sh,
+    'lh_50_n':     rel_lh,
+    'sh_50_n':     rel_sh,
     'rad_sw_n':    rad_sw,
     'rad_lw_n':    rad_lw,
     'total_mse_n': total,
     'season_n':    season,
 }
+outputs = {name: da.rename(name) for name, da in outputs.items()}
 
 def rechunk(da):
     return da.chunk({k: v for k, v in out_chunks.items() if k in da.dims})

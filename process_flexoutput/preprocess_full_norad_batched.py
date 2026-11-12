@@ -43,13 +43,12 @@ def centered_diff(da, dim='time'):
     return (da.shift({dim: -1}) - da.shift({dim: 1})) / 2
 
 year = sys.argv[1]
+height = 50
 
 path = '/jetfs/scratch/psplechtna/flexpart_output/oper/' + year + '/'
 filename = glob.glob(os.path.join(path, f'grid_time_{year}0*.nc'))[0]
 path_fluxes = '/jetfs/scratch/psplechtna/thesisdata/sfcfluxes/'
 filename_fluxes = f'fluxes_per_sec_{year}.nc'
-path_bl     = '/jetfs/scratch/psplechtna/thesisdata/boundary_layer/'
-filename_bl = f'bl_height_{year}.nc'
 
 path_clim = '/jetfs/scratch/psplechtna/thesisdata/mse_climatology_4.0/'
 filename_clim = 'mse_hourly_climatology.zarr'
@@ -69,7 +68,7 @@ data = xr.open_dataset(
     chunks={'time': 1, 'pointspec': 1, 'height': -1,
             'latitude': -1, 'longitude': -1},
 )
-# add missing longitude data - just to have a full longitude dataset, the values don't matter for now
+# add missing longitude data - linear interpolation
 # convert to 0-360 first
 data = data.assign_coords(longitude=data.longitude % 360).sortby("longitude")
 lon_vars = [
@@ -110,19 +109,15 @@ def load_era5(path, names):
 
 t = time.time()
 fl  = load_era5(path_fluxes + filename_fluxes, ['slhf', 'sshf']); print('fluxes loaded', time.time()-t, flush=True)
-bl  = load_era5(path_bl + filename_bl, ['blh']);                  print('blh loaded', time.time()-t, flush=True)
-anc = xr.merge([fl, bl], join='inner').chunk({'time': 1})
+fl = fl.chunk({'time': 1})
 mem('after era5')
 
-# --- Boundary layer integration -----------------------------------------
-hmin = data_mr['height'].min()
-below = (data_mr['height'] < anc['blh']) | (data_mr['height'] == hmin)
-released_mr = xr.dot(data_mr, below.astype('float32'), dim='height')
-cutoff_height = data_mr['height'].where(below).max('height')
-
+# choose all heights below height
+released = data_mr.isel(height=(data_mr.height <= height).values).sum('height')
 # --- # sfc fluxes
-rel_lh = (-anc['slhf'] * released_mr / cutoff_height).squeeze().rename('lh_bl')
-rel_sh = (-anc['sshf'] * released_mr / cutoff_height).squeeze().rename('sh_bl')
+rel_lh = (-fl['slhf'] * released / height).squeeze().rename('lh_50')
+rel_sh = (-fl['sshf'] * released / height).squeeze().rename('sh_50')
+
 
 # --- # advection
 total  = xr.dot(clim_aligned, data_mass, dim=['latitude', 'longitude', 'height']).rename('total') / 3600
@@ -131,8 +126,8 @@ season = xr.dot(dclim_dt, data_mass, dim=['latitude', 'longitude', 'height']).re
 out_chunks = {'time': 1, 'pointspec': -1, 'latitude': -1, 'longitude': -1}
 
 outputs = {
-    'lh_bl':     rel_lh,
-    'sh_bl':     rel_sh,
+    'lh_50':     rel_lh,
+    'sh_50':     rel_sh,
     'total_mse': total,
     'season':    season,
 }
