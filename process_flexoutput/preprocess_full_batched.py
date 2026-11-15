@@ -122,7 +122,8 @@ clim_mse = clim_mse.sel(latitude=data.latitude.values, longitude=data.longitude.
 clim_aligned = clim_mse.sel(dayofyear=doy, hour=hour).chunk({'time': 1})
 mem('after clim')
 
-dclim_dt = centered_diff(clim_aligned)
+#dclim_dt = centered_diff(clim_aligned)
+dclim_dt = clim_aligned.differentiate('time')*1e9*3600
 print(data.sizes, clim_aligned.nbytes/1e9, dclim_dt.nbytes/1e9, flush=True)
 # --- ERA5 fields: merge, subset, load, interpolate once -----------------
 def load_era5(path, names):

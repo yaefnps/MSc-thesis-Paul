@@ -4,7 +4,6 @@ import glob
 import psutil, os
 import xarray as xr
 import sys
-from dask.diagnostics import ProgressBar
 import time
 
 print('running', __file__, flush=True)
@@ -97,7 +96,8 @@ clim_mse = clim_mse.sel(latitude=data.latitude.values, longitude=data.longitude.
 clim_aligned = clim_mse.sel(dayofyear=doy, hour=hour).chunk({'time': 1})
 mem('after clim')
 
-dclim_dt = centered_diff(clim_aligned)
+#dclim_dt = centered_diff(clim_aligned)
+dclim_dt = clim_aligned.differentiate('time')*1e9*3600
 print(data.sizes, clim_aligned.nbytes/1e9, dclim_dt.nbytes/1e9, flush=True)
 # --- ERA5 fields: merge, subset, load, interpolate once -----------------
 def load_era5(path, names):
@@ -120,7 +120,6 @@ released = data_mr.isel(height=(data_mr.height <= height).values).sum('height')
 # --- # sfc fluxes
 rel_lh = (-fl['slhf'] * released / height).squeeze().rename('lh_50')
 rel_sh = (-fl['sshf'] * released / height).squeeze().rename('sh_50')
-
 
 # --- # advection
 total  = xr.dot(clim_aligned, data_mass, dim=['latitude', 'longitude', 'height']).rename('total') / 3600
