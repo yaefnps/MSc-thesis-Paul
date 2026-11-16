@@ -135,17 +135,18 @@ released = data_mr.isel(height=(data_mr.height <= height).values).sum('height')
 rel_lh = (-fl['slhf'] * released / height).squeeze().rename('lh_50')
 rel_sh = (-fl['sshf'] * released / height).squeeze().rename('sh_50')
 
+total_mass = data_mass.sum(dim=['latitude', 'longitude', 'height']).load()
 # --- # advection
-total  = xr.dot(clim_aligned, data_mass, dim=['latitude', 'longitude', 'height']).rename('total') / 3600
-season = xr.dot(dclim_dt, data_mass, dim=['latitude', 'longitude', 'height']).rename('season') / 3600
+total  = xr.dot(clim_aligned, data_mass, dim=['latitude', 'longitude', 'height']).rename('total') / total_mass
+season = xr.dot(dclim_dt, data_mass, dim=['latitude', 'longitude', 'height']).rename('season') / total_mass
 
 out_chunks = {'time': 1, 'pointspec': -1, 'latitude': -1, 'longitude': -1}
 
 outputs = {
-    'lh_50':     rel_lh,
-    'sh_50':     rel_sh,
-    'total_mse': total,
-    'season':    season,
+    f'lh_{height}':     rel_lh,
+    f'sh_{height}':     rel_sh,
+    'total_mse':        total,
+    'season':           season,
 }
 
 def rechunk(da):
