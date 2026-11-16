@@ -152,10 +152,22 @@ def average_to_layers_massweighted(source, boundaries, upper_bounds, dp):
 times_ini, times_fin, heights, lat, lon, age = read_namelists(run_dir)
 ds_ini = read_gridini(run_dir, times_ini, heights, lat, lon)
 
-# duplicate the westernmost column at -179.5 to close the wrap-around
-wrap1 = ds_ini.sel(longitude=-179).assign_coords(longitude=-179.5)
-ds_ini = xr.concat([wrap1, ds_ini], dim="longitude")
-ds_ini = ds_ini.assign_coords(longitude=wrap_lon(ds_ini.longitude)).sortby("longitude")
+# add missing longitude data - just to have a full longitude dataset, linear interpolation
+# convert to 0-360 first
+ds_ini = ds_ini.assign_coords(longitude=ds_ini.longitude % 360).sortby("longitude")
+
+# interpolate the missing longitude (180.5 == -179.5)
+new = ds_ini['sensitivity'].interp(longitude=[180.5], method="linear")
+
+lon_part = xr.concat([ds_ini['sensitivity'], new], dim="longitude")
+ds_ini = lon_part.to_dataset(name="sensitivity")
+
+# back to the [-180, 180) convention used everywhere else in the script
+ds_ini = (
+    ds_ini.assign_coords(longitude=wrap_lon(ds_ini.longitude))
+    .sortby(["longitude"])
+    .sortby("latitude")
+)
 
 # --------------------------------------------- MSE on the FLEXPART grid
 component_names = ["cpT", "Lvq", "pot"]
@@ -262,7 +274,7 @@ lon_common = sens.indexes["longitude"].intersection(clim_mse.indexes["longitude"
 sens = sens.sel(latitude=lat_common, longitude=lon_common)
 clim_mse = clim_mse.sel(latitude=lat_common, longitude=lon_common)
 
-# fail loudly if the grids differ (height only exists on sens)
+# fail loudly if the grids differ
 xr.align(sens, clim_mse, join="exact", exclude=["height"])
 
 # the intersection must not cut into the footprint, otherwise the
@@ -270,7 +282,8 @@ xr.align(sens, clim_mse, join="exact", exclude=["height"])
 kept = sens.sum(["height", "latitude", "longitude"])
 #np.testing.assert_allclose(kept.values, init_conds.sensitivity_sum.values, rtol=1e-5)
 
-clim_raw = (sens * clim_mse).sum(dim=["height", "latitude", "longitude"], skipna=False)
+#clim_raw = (sens * clim_mse).sum(dim=["height", "latitude", "longitude"], skipna=False)
+clim_raw = xr.dot(clim_mse, sens, dims=['latitude', 'longitude', 'height'])
 
 init_conds["clim"] = clim_raw / init_conds.sensitivity_sum
 init_conds["init_anom"] = (

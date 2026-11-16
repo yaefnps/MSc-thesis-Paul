@@ -67,7 +67,7 @@ data = xr.open_dataset(
     chunks={'time': 1, 'pointspec': 1, 'height': -1,
             'latitude': -1, 'longitude': -1},
 )
-# add missing longitude data - just to have a full longitude dataset, the values don't matter for now
+# add missing longitude data - just to have a full longitude dataset, linear interpolation
 # convert to 0-360 first
 data = data.assign_coords(longitude=data.longitude % 360).sortby("longitude")
 lon_vars = [
@@ -147,10 +147,9 @@ released = data_mr.isel(height=(data_mr.height <= height).values).sum('height')
 rel_lh = (-fl['slhf'] * released / height).squeeze().rename('lh_50')
 rel_sh = (-fl['sshf'] * released / height).squeeze().rename('sh_50')
 
-data_mr_sum = data_mr.sum(dim=['latitude', 'longitude', 'height']).load()
 # --- # advection
-total  = xr.dot(clim_aligned, data_mr, dim=['latitude', 'longitude', 'height']).rename('total') / data_mr_sum
-season = xr.dot(dclim_dt, data_mr, dim=['latitude', 'longitude', 'height']).rename('season') / data_mr_sum
+total  = xr.dot(clim_aligned, data_mass, dims=['latitude', 'longitude', 'height']).rename('total') / 3600
+season = xr.dot(dclim_dt, data_mass, dims=['latitude', 'longitude', 'height']).rename('season') / 3600
 
 # --- # radiation
 rad_sw = xr.dot(rad_grid['avg_ttswr'], data_mass, dim='height').rename('rad_sw')
@@ -159,12 +158,12 @@ rad_lw = xr.dot(rad_grid['avg_ttlwr'], data_mass, dim='height').rename('rad_lw')
 out_chunks = {'time': 1, 'pointspec': -1, 'latitude': -1, 'longitude': -1}
 
 outputs = {
-    'lh_50_n':     rel_lh,
-    'sh_50_n':     rel_sh,
-    'rad_sw_n':    rad_sw,
-    'rad_lw_n':    rad_lw,
-    'total_mse_n': total,
-    'season_n':    season,
+    f'lh_{height}':     rel_lh,
+    f'sh_{height}':     rel_sh,
+    'rad_sw':           rad_sw,
+    'rad_lw':           rad_lw,
+    'total_mse':        total,
+    'season':           season,
 }
 outputs = {name: da.rename(name) for name, da in outputs.items()}
 
