@@ -78,7 +78,7 @@ new = data[lon_vars].interp(longitude=[180.5], method="linear")
 lon_part = xr.concat([data[lon_vars], new], dim="longitude").sortby("longitude")
 data = xr.merge([lon_part, data.drop_vars(lon_vars)], compat="override").sortby("latitude")
 
-data = data.sel(latitude=slice(30, 90))      # subset BEFORE any heavy work
+data = data.sel(latitude=slice(20, 90))      # subset BEFORE any heavy work
 
 # --- DEBUG: only process the first N time steps ---
 ntest = int(sys.argv[2]) if len(sys.argv) > 2 else None
@@ -129,7 +129,7 @@ print(data.sizes, clim_aligned.nbytes/1e9, dclim_dt.nbytes/1e9, flush=True)
 def load_era5(path, names):
     ds = xr.open_dataset(path)[names].rename({'valid_time': 'time'})
     ds = ds.sel(time=slice(data.time.min().values, data.time.max().values))
-    ds = ds.sel(latitude=slice(90, 30))
+    ds = ds.sel(latitude=slice(90, 20))
     ds = ds.load()
     ds = ds.assign_coords(longitude=ds.longitude % 360).sortby('longitude').sortby('latitude')
     ds = ds.sel(latitude=data.latitude.values, longitude=data.longitude.values)

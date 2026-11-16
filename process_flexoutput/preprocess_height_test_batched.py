@@ -77,7 +77,7 @@ new = data[lon_vars].interp(longitude=[180.5], method="linear")
 lon_part = xr.concat([data[lon_vars], new], dim="longitude").sortby("longitude")
 data = xr.merge([lon_part, data.drop_vars(lon_vars)], compat="override").sortby("latitude")
 
-data = data.sel(latitude=slice(30, 90))      # subset BEFORE any heavy work
+data = data.sel(latitude=slice(20, 90))      # subset BEFORE any heavy work
 data = data.chunk({'time': 1, 'pointspec': 1, 'height': -1, 'latitude': -1, 'longitude': -1})
 data_mr = data['spec001_mr'].isel(nageclass=0)
 
