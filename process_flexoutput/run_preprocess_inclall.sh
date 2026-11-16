@@ -9,6 +9,6 @@
 #SBATCH --mail-user=a11925151@unet.unvie.ac.at
 
 source ~/activate_flexpart_post.sh
-RUN='oper/2024/oper_04'
+RUN='oper/2024/oper_08'
 
 /usr/bin/time -v python3 -u preprocess_full_batched.py $RUN

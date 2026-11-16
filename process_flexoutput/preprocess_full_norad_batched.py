@@ -13,7 +13,7 @@ def mem(tag):
     
 import threading, time
 
-def _monitor(interval=60):
+def _monitor(interval=300):
     while True:
         mem('monitor')
         time.sleep(interval)
@@ -135,10 +135,10 @@ released = data_mr.isel(height=(data_mr.height <= height).values).sum('height')
 rel_lh = (-fl['slhf'] * released / height).squeeze().rename('lh_50')
 rel_sh = (-fl['sshf'] * released / height).squeeze().rename('sh_50')
 
-total_mass = data_mass.sum(dim=['latitude', 'longitude', 'height']).load()
+total_mass = data_mass.sum(dim=['latitude', 'longitude', 'height'])
 # --- # advection
-total  = xr.dot(clim_aligned, data_mass, dim=['latitude', 'longitude', 'height']).rename('total') / total_mass
-season = xr.dot(dclim_dt, data_mass, dim=['latitude', 'longitude', 'height']).rename('season') / total_mass
+total  = (xr.dot(clim_aligned, data_mass, dim=['latitude', 'longitude', 'height']) / total_mass).rename('total')
+season = (xr.dot(dclim_dt,     data_mass, dim=['latitude', 'longitude', 'height']) / total_mass).rename('season')
 
 out_chunks = {'time': 1, 'pointspec': -1, 'latitude': -1, 'longitude': -1}
 
