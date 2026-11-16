@@ -20,26 +20,40 @@ def _monitor(interval=60):
 
 threading.Thread(target=_monitor, daemon=True).start()
 
-def centered_diff(da, dim='time'):
+def centered_diff(da, dim='time', datetime_unit='h'):
     """
-    Computes a centered (second-order) finite difference along `dim`:
-    
-        f'(t) ~ (f(t+1) - f(t-1)) / 2
-    
-    Unlike xarray's .diff(), this keeps the same length/coordinates as the
-    input array, with NaN at the first and last step along `dim` (since a
-    centered difference needs a neighbor on both sides).
-    
-    Inputs:
-    -----------
-        da: [xarray.DataArray] the array to differentiate
-        dim: [str] the dimension to differentiate along (default 'time')
-    
-    Returns:
-    -----------
-        [xarray.DataArray] same shape as da
+    Derivative along `dim`, equivalent to da.differentiate(dim, datetime_unit=...)
+    (np.gradient, edge_order=1) but safe for dask arrays with size-1 chunks.
+
+      interior: second-order, valid for non-uniform spacing
+      first/last step: one-sided (forward / backward) difference
+
+    For datetime coordinates the result is per `datetime_unit` ('h', 's', ...).
     """
-    return (da.shift({dim: -1}) - da.shift({dim: 1})) / 2
+    coord = da[dim].values
+    if np.issubdtype(coord.dtype, np.datetime64):
+        x = (coord - coord[0]) / np.timedelta64(1, datetime_unit)
+    else:
+        x = coord.astype('float64')
+
+    n = x.size
+    if n < 2:
+        raise ValueError(f"need at least 2 points along {dim!r}")
+
+    x = xr.DataArray(x, dims=dim)          # plain numpy, no index -> no alignment issues
+    hs = x - x.shift({dim: 1})             # spacing to the left  (NaN at first)
+    hd = x.shift({dim: -1}) - x            # spacing to the right (NaN at last)
+
+    f_m = da.shift({dim: 1})               # f(t-1)
+    f_p = da.shift({dim: -1})              # f(t+1)
+
+    interior = (hs**2 * f_p - hd**2 * f_m + (hd**2 - hs**2) * da) / (hs * hd * (hs + hd))
+    forward  = (f_p - da) / hd             # used at the first step
+    backward = (da - f_m) / hs             # used at the last step
+
+    idx = xr.DataArray(np.arange(n), dims=dim)
+    out = xr.where(idx == 0, forward, xr.where(idx == n - 1, backward, interior))
+    return out.transpose(*da.dims)
 
 year = sys.argv[1]
 height = 50
@@ -96,8 +110,8 @@ clim_mse = clim_mse.sel(latitude=data.latitude.values, longitude=data.longitude.
 clim_aligned = clim_mse.sel(dayofyear=doy, hour=hour).chunk({'time': 1})
 mem('after clim')
 
-#dclim_dt = centered_diff(clim_aligned)
-dclim_dt = clim_aligned.differentiate('time')*1e9*3600
+dclim_dt = centered_diff(clim_aligned, 'time', datetime_unit='h')
+
 print(data.sizes, clim_aligned.nbytes/1e9, dclim_dt.nbytes/1e9, flush=True)
 # --- ERA5 fields: merge, subset, load, interpolate once -----------------
 def load_era5(path, names):
