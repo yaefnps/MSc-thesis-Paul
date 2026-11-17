@@ -1,49 +1,113 @@
 import numpy as np
 import xarray as xr
-import datetime as dt
 import datetime
 import glob
 import os
 
+
+
+import re
+import os
+import glob
+import datetime as dt
+import numpy as np
+import xarray as xr
+ 
+_RAD_HOURLY_RE = re.compile(r'^TMTTRAD(\d{10})(\.\w+)?$')   # TMTTRAD2024081108 (optional .grb etc.)
+ 
+ 
 def _parse_rad_filename(path):
     """TMTTRAD_2024060107_2024060118.nc -> (start, end), both inclusive."""
     _, s, e = os.path.basename(path).replace('.nc', '').split('_')
     return dt.datetime.strptime(s, '%Y%m%d%H'), dt.datetime.strptime(e, '%Y%m%d%H')
-
-
+ 
+def _parse_rad_hourly(path):
+    """TMTTRAD2024081108 -> datetime, or None if the name does not match
+    (e.g. cfgrib .idx files, which have two dots)."""
+    m = _RAD_HOURLY_RE.match(os.path.basename(path))
+    return dt.datetime.strptime(m.group(1), '%Y%m%d%H') if m else None
+ 
+ 
+def _clean(ds, var_list):
+    """Keep only the needed variables; drop GRIB-style leftovers that could clash."""
+    return ds[var_list].drop_vars(['time', 'step'], errors='ignore')
+ 
+ 
+def _read_rad_hourly(files, var_list):
+    """Read single-timestep binary (GRIB) files and stack them along valid_time."""
+    parts = []
+    for f in files:
+        with xr.open_dataset(
+            f, engine='cfgrib',
+            backend_kwargs={'indexpath': '', 'filter_by_keys': {'typeOfLevel': 'hybrid'}},
+        ) as ds:
+            ds = _clean(ds, var_list)
+            if 'valid_time' not in ds.dims:          # scalar valid_time -> length-1 dimension
+                ds = ds.expand_dims('valid_time')
+            parts.append(ds.load())
+    return xr.concat(parts, dim='valid_time', data_vars='minimal', coords='minimal',
+                     compat='override')
+ 
+ 
 def open_rad_day(eradir_rad, day, var_list):
     """
     Open all radiation files overlapping `day` and return its 24 hours in memory.
+ 
+    Supports two layouts (flat directory or YYYY/MM subfolders), also mixed:
+      - netCDF ranges:   TMTTRAD_2024060107_2024060118.nc
+      - hourly binaries: TMTTRAD2024081108  (read with cfgrib)
     """
     day_start = dt.datetime(day.year, day.month, day.day, 0)
     day_end = day_start + dt.timedelta(hours=23)
-
-    # works for a flat directory or a YYYY/MM subfolder layout
-    candidates = (glob.glob(os.path.join(eradir_rad, 'TMTTRAD_*_*.nc')) +
-                  glob.glob(os.path.join(eradir_rad, '*', '*', 'TMTTRAD_*_*.nc')))
-    files = sorted(f for f in candidates
-                   if (lambda se: se[0] <= day_end and se[1] >= day_start)(_parse_rad_filename(f)))
-    if not files:
+ 
+    def find(pattern):
+        return (glob.glob(os.path.join(eradir_rad, pattern)) +
+                glob.glob(os.path.join(eradir_rad, '*', '*', pattern)))
+ 
+    # netCDF files covering several hours
+    nc_files = sorted(f for f in find('TMTTRAD_*_*.nc')
+                      if (lambda se: se[0] <= day_end and se[1] >= day_start)(_parse_rad_filename(f)))
+ 
+    # hourly files; +-1 h margin in case the file stamp and valid_time differ by one hour
+    # (the exact selection happens on valid_time below)
+    margin = dt.timedelta(hours=1)
+    hourly = {}
+    for f in find('TMTTRAD[0-9]*'):
+        t = _parse_rad_hourly(f)
+        if t is not None and day_start - margin <= t <= day_end + margin:
+            hourly[f] = t
+    hourly_files = sorted(hourly, key=hourly.get)
+ 
+    if not nc_files and not hourly_files:
         raise FileNotFoundError(f'No radiation files cover {day:%Y-%m-%d} in {eradir_rad}')
-
-    ds = xr.open_mfdataset(files, combine='nested', concat_dim='valid_time',
-                           data_vars='minimal', coords='minimal', compat='override')
+ 
+    parts = []
+    if nc_files:
+        parts.append(_clean(
+            xr.open_mfdataset(nc_files, combine='nested', concat_dim='valid_time',
+                              data_vars='minimal', coords='minimal', compat='override'),
+            var_list))
+    if hourly_files:
+        parts.append(_read_rad_hourly(hourly_files, var_list))
+ 
+    ds = parts[0] if len(parts) == 1 else xr.concat(
+        parts, dim='valid_time', data_vars='minimal', coords='minimal', compat='override')
+ 
     ds = ds.sortby('valid_time')
     _, idx = np.unique(ds['valid_time'].values, return_index=True)   # drop duplicate stamps
     ds = ds.isel(valid_time=idx)
     ds = ds.sel(valid_time=slice(day_start, day_end))
-
-    # keep only what we need; drop GRIB-style leftovers that could clash in the merge
-    ds = ds[var_list].drop_vars(['time', 'step'], errors='ignore')
-
+ 
     # make sure the level dimension is called 'hybrid' like in the fx files
     for cand in ('level', 'model_level', 'lev', 'nhyb'):
         if cand in ds.dims and 'hybrid' not in ds.dims:
             ds = ds.rename({cand: 'hybrid'})
-
+ 
     if ds.sizes['valid_time'] != 24:
         print(f'WARNING: {day:%Y-%m-%d} has {ds.sizes["valid_time"]} radiation timesteps, expected 24')
     return ds.load()
+
+
 
 def create_datelist(startdate, stopdate, step=datetime.timedelta(hours=1)):
     """
